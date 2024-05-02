@@ -1,54 +1,52 @@
 from brian2 import *
 import functions as fs
-from scipy import signal as sig
+from scipy import signal as sg
 from IPython import embed
 
-delta_t = 0.01*ms
+delta_t = 0.1*ms
 defaultclock.dt = delta_t
-sim_length = 10*second
-num_sensors = 10
-sensor_tau = 40*ms
-threshold = 1*mV
-reset = 0*mV
-refractory = 0.1*ms
-noisiness = 1*mV/ms
+sim_length = 5*second
+num_sensors = 50
+sensor_tau = 20*ms
+threshold = -50*mV
+reset = -70*mV
+refractory = 1*ms
+noisiness = 20*mV/ms
+signal_maxfreq = ms/sensor_tau # per ms
+signal_amplitude = 20*mV # SD around 0mV
+freq_resolution = 10 # steps until maxfreq
+def eval(coherences): return mean(coherences)
+#def delay(i): return sqrt(i) * 5 * ms
+def delay(i): return i * 1 * ms
 
 sensor_equations = 'dvoltage/dt = (signal(t)-voltage)/sensor_tau + xi_voltage*noisiness*sqrt(delta_t): volt (unless refractory)'
 sensors = NeuronGroup(num_sensors, sensor_equations, threshold='voltage>threshold', reset='voltage=reset', refractory='refractory', method='euler')
-pre_signal = fs.whitenoise(0, 0.2, delta_t/ms, (sim_length-delta_t)/ms) * 3 + 10
-signal = TimedArray(pre_signal*mV, delta_t)
+sensors.voltage = reset
+pre_signal = fs.whitenoise(0, signal_maxfreq, delta_t/ms, (sim_length-delta_t)/ms)
+signal = TimedArray(signal_amplitude*pre_signal, delta_t)
 spikes = SpikeMonitor(sensors)
 run(sim_length)
 
-output = zeros(len(pre_signal))
-output[int(spikes.t/delta_t)] += ms/delta_t/num_sensors
-#embed()
+input = signal(arange(0, sim_length, delta_t))
+performances = [zeros(freq_resolution)]
+for n in range(1, num_sensors + 1):
+    output = zeros(len(input))
+    for s in range(spikes.num_spikes):
+        if spikes.i[s] < n:
+            t = spikes.t[s] + delay(spikes.i[s])
+            if t < sim_length:
+                output[int(t/delta_t)] += 1 # += ms/delta_t/n
+    eval_delay = int(delay(n-1) / delta_t)
+    _, coh_spect = sg.coherence(input[eval_delay:], output[eval_delay:], nperseg = freq_resolution/signal_maxfreq/(delta_t/ms))
+    performances.append(coh_spect[1:freq_resolution])
 
-fig, axs = subplots(3)
-#axs[0].plot(states.t/ms, output/mV)
-axs[0].plot(states.t/ms, output*num_sensors*delta_t/ms)
-axs[0].plot(states.t/ms, input/mV)
-axs[0].set_xlim(100, 200)
-nfft = 2**15
-in_freqs, in_spect = sig.welch(input, fs = 1/delta_t, nperseg = nfft)
-out_freqs, out_spect = sig.welch(output, fs = 1/delta_t, nperseg = nfft)
-coh_freqs, coh_spect = sig.coherence(input, output, fs=1/delta_t, nperseg = nfft)
-#axs[1].plot(out_freqs*ms, out_spect/mV)
-axs[1].plot(out_freqs*ms, out_spect*sensor_tau/ms*200)
-axs[1].plot(in_freqs*ms, in_spect/mV*10000)
-axs[1].set_xlim(0, 0.3)
-axs[1].set_ylim(0, 1)
-axs[2].plot(coh_freqs*ms, coh_spect)
-axs[2].set_xlim(0, 0.3)
-axs[2].set_ylim(0, 1)
-#cohere(input, output)
-#y = rfft(input)
-#x = rfftfreq(input)
-#plot(x, y)
-#plot(sig.welch(input))
-#axs[0].eventplot(spikes.t/ms, lineoffsets=0, linelengths=0.1, colors='black')
-#xlabel('Frequency')
-#ylabel('Coherence')
-
-#plot(attractor_range, firing_rates)
+plot(list(map(eval, performances)), color = "black", linewidth = 2, label = "overall")
+freq_perfs = list(map(list, zip(*performances)))
+for f in range(1, freq_resolution):
+    gradient = f/freq_resolution
+    plot(freq_perfs[f-1], color = (gradient, 1-gradient, 0.5), label = str(int(gradient*signal_maxfreq*1000)) + "Hz")
+legend()
+ylim(0, 1)
 show()
+
+#embed()
