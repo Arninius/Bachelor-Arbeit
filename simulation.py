@@ -11,11 +11,20 @@ def setup_neurons(n):
                        method = 'euler')
 
 def get_realistic_params():
-    return {'tau': 20*ms,
+    return {'tau': 1*ms,
             'threshold': -50*mV,
             'reset': -70*mV,
-            'refractory': 1*ms,
+            'refractory': 0*ms,
             'noisiness': 10*mV/sqrt(ms)}
+
+def gen_freq_signal(len, dt, freq = 100):
+    n = int(len/dt)
+    signal = [np.sin(2*pi*freq*i/n) 
+              * np.sin(2*pi*1*i/n)
+              for i in range(n)]
+    plot(signal)
+    show()
+    return TimedArray(30*mV * signal, dt)
 
 def gen_pink_signal(len, dt):
     n = int(len/dt)
@@ -24,15 +33,15 @@ def gen_pink_signal(len, dt):
     filter /= np.sqrt(np.mean(filter**2))
     pink_noise = white_noise * filter
     #plot(np.abs(pink_noise))
-    return TimedArray(30*mV * np.fft.irfft(pink_noise), dt)
+    return TimedArray(20*mV * np.fft.irfft(pink_noise), dt)
 
-def gen_bounded_signal(len, dt, min = 100, max = 200): # not higher than 5000
+def gen_bounded_signal(len, dt, min, max):
     n = int(len/dt)
     white_noise = np.fft.rfft(np.random.randn(n))
     window = np.empty(1+max-min); window.fill(1/np.sqrt((1+max-min)/(n/2+1)))
     filter = np.concatenate((np.zeros(min), window, np.zeros(int(n/2)-max)))
     bounded_noise = white_noise * filter
-    return TimedArray(30*mV * np.fft.irfft(bounded_noise), dt)
+    return TimedArray(10*mV * np.fft.irfft(bounded_noise), dt)
 
 def simulate(neurons, params, signal):
     defaultclock.dt = signal.dt*second
