@@ -1,27 +1,48 @@
 from brian2 import *
-from scipy import stats
 import simulation as sm
 import analysis as nl
 import plotting as pl
+from IPython import embed
 
-neurons = sm.setup_neurons(n = 100)
-params = sm.get_realistic_params()
-signal = sm.gen_bounded_signal(len = 1*second, dt = 0.01*ms, min = 100, max = 1000)
-#signal = sm.gen_pink_signal(len = 1*second, dt = 0.01*ms)
-spikes = sm.simulate(neurons, params, signal)
-print("simulation complete")
+n = 100
+dt = 0.01*ms
+dur = 10*second
+steps = round(dur/dt)
+min_f = 100/second
+max_f = 1000/second
+params = sm.realistic_params
 
-func = nl.info_at(100)
-uni_weights = ones(len(spikes))
-tuned_weights = nl.curvy_weights(100, 10)
+print("preparation")
+signal = sm.normal_noise(dt, steps, min_f, max_f)
+# TODO: SIMILAR NOISE FOR NEARBY NEURONS
+neurons = sm.sensor_neurons(n, dt, params)
+monitor = SpikeMonitor(neurons)
 
-#nl.calc_overall(signal, spikes, uni_weights, 0)
-#nl.calc_overall(signal, spikes, uni_weights, 10)
-#nl.calc_overall(signal, spikes, tuned_weights, 10)
-#show()
-plot(nl.calc_stepwise(signal, spikes, uni_weights, 0, func), label = "no delays")
-plot(nl.calc_stepwise(signal, spikes, uni_weights, 10, func), label = "naive sum")
-plot(nl.calc_stepwise(signal, spikes, tuned_weights, 10, func), label = "freq-wise")
+print("simulation")
+run(dur, namespace = {'signal': signal})
+spikes = monitor.spike_trains()
 
-legend()
-show()
+print("integration")
+delays = np.linspace(0*ms, 10*ms, n, endpoint = False)
+models = [#{'label': "min delay",
+          # 'color': "silver",
+          # 'output': nl.const_delay_sum(n, dt, steps, spikes, np.min(delays))},
+          #{'label': "max delay",
+          # 'color': "gray",
+          # 'output': nl.const_delay_sum(n, dt, steps, spikes, np.max(delays))},
+          {'label': "fourier combine",
+           'color': "magenta",
+           'output': nl.fourier_combine(n, dt, dur, steps, spikes, delays, min_f, max_f, 0.1*ms, 0.1)},     
+          {'label': "ideal field",
+           'color': "gold",
+           'output': nl.ideal_field_sum(dt, steps, signal, spikes, delays, 100*ms, min_f, max_f)},
+         # {'label': "freqs delay",
+         #  'color': "green",
+         #  'output': nl.freqs_delay_sum(n, dt, steps, spikes, delays, min_f, max_f)},
+          {'label': "freq weight",
+           'color': "royalblue",
+           'output': nl.freq_weight_sum(n, dt, steps, spikes, delays, min_f, max_f)}
+         ]
+
+print("evaluation")
+pl.spect_plot(dt, signal, models, min_f, max_f, 100*ms)
