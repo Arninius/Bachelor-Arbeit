@@ -1,0 +1,6 @@
+1. Without delays: Increase of information with neuron population size (square root)
+2. With delays: Natalie and Grewe papers
+3. Single frequencies with cosine-weights (derivation from DFT and iDFT with t = 0 at given frequency)
+4. Frequency spectrum with cosine-weights, too much noise
+5. Fourier-Combine as noise cancelling extension of cosine-weights, superiority
+6. Consequences for receptive field sizes (always detrimental, but for lower frequencies, larger fields are tolerable)
