@@ -1,61 +1,65 @@
 from brian2 import *
-from time import *
-import sim
-import calc
-import eval
+from scipy import ndimage
+import simulation as sm
+import analysis as nl
+import plotting as pl
 from IPython import embed
 
-start_time = time()
+NEURON_NUM = 1000
+SIM_LENGTH = 10*second
+RESOLUTION = 0.01*ms
 
-print("initialization")
-n = 100
-dt = 0.01*ms
-dur = 10*second
-min_f = 100/second
-max_f = 1000/second
-delay_range = 10*ms
-params = sim.realistic_params
-steps = round(dur/dt)
-delay = round(delay_range/dt)
-min_p = round(1/max_f/dt)
-max_p = round(1/min_f/dt)
-print(str(round(time() - start_time, 2)) + " seconds")
+neurons = sm.setup_neurons(NEURON_NUM)
+params = sm.get_realistic_params()
+signal = sm.gen_bounded_signal(SIM_LENGTH, RESOLUTION, min = 100/second, max = 1000/second)
+spikes = sm.simulate(neurons, params, signal)
+print("simulation complete")
 
-print("preparation")
-signal = sim.normal_noise(dt, steps, min_f, max_f)
-neurons = sim.sensor_neurons(n, dt, params)
-monitor = SpikeMonitor(neurons)
-print(str(round(time() - start_time, 2)) + " seconds")
+#pl.plot_infos_per_window(NEURON_NUM, RESOLUTION, signal, spikes)
 
-print("simulation")
-run(dur, namespace = {'signal': signal})
-spikes = monitor.spike_trains()
-print(str(round(time() - start_time, 2)) + " seconds")
+#print("First plot done")
 
-print("integration")
-input = np.zeros((n, steps), dtype=int)
-for i in range(n):
-  times = np.around(spikes[i] / dt + delay * i / n).astype(int)
-  times = times[:np.searchsorted(times, steps)]
-  input[i][times] = 1
-models = [{'label': "same delay",
-           'color': "silver",
-           'output': calc.same_delay(input, delay)},
-          {'label': "narrow sum",
-           'color': "gold",
-           'output': calc.narrow_sum(input, delay, min_p)},
-          {'label': "smart weights",
-           'color': "blue",
-           'output': calc.smart_weights(input, delay, min_p, max_p)},
-          {'label': "dynamic state, fast",
-           'color': "blueviolet",
-           'output': calc.dynamic_state(input, delay, min_p, max_p, 0.02)},
-          {'label': "dynamic state, slow",
-           'color': "magenta",
-           'output': calc.dynamic_state(input, delay, min_p, max_p, 0.005)}  
-         ]
-print(str(round(time() - start_time, 2)) + " seconds")
+n = NEURON_NUM
+dt = RESOLUTION
+delays = [nl.linear_delays(n, 0*ms, 0*ms),
+          nl.linear_delays(n, 5*ms, 5*ms),
+          nl.linear_delays(n, 10*ms, 10*ms),
+          nl.linear_delays(n, 0*ms, 10*ms),
+          nl.linear_delays(n, 0*ms, 10*ms),
+          nl.linear_delays(n, 0*ms, 10*ms)]
+labels = ["no delays",
+          "5ms delays",
+          "10ms delays",
+          "0-10ms delays, fast",
+          "0-10ms delays, compromise",
+          "0-10ms delays, precise"]
+colors = ["lightgray",
+          "darkgray",
+          "dimgray",
+          "goldenrod",
+          "forestgreen",
+          "royalblue"]
+windows = np.around(10 ** np.linspace(0, 2, 10)) * 10*ms
+evals = np.empty(len(windows))
 
-print("evaluation")
-eval.spect_plot(dt, signal, models, min_f, max_f, 1*second, 5)
-print(str(round(time() - start_time, 2)) + " seconds")
+for i in range(len(labels)):
+    output = np.zeros(round(SIM_LENGTH/dt))
+    for freq in np.linspace(100/second, 1000/second, 10):
+        if i < 4: dels = delays[i]
+        elif i == 4: dels = nl.improve_delays(delays[i], freq, 0.75)
+        elif i == 5: dels = nl.improve_delays(delays[i], freq, 1)
+        if i < 3: weights = nl.ones(n)
+        else: weights = nl.optimal_weights(freq, dels)
+        output += nl.calc_output(n, dt, signal, spikes, dels, weights)
+    evals = np.empty(len(windows))
+    for w in range(len(windows)):
+        evals[w] = nl.evaluate(dt, signal, output, np.max(delays[i]), 100/second, 1000/second, windows[w])
+    print(labels[i])
+    plot(windows/ms, evals, label = labels[i], color = colors[i])
+
+xlabel("evaluation window in ms")
+xscale("log")
+xlim(10, 1000)
+ylabel("mutual information")
+legend()
+savefig("Global-Comparison")
