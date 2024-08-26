@@ -15,10 +15,10 @@ min_f = 100/second
 max_f = 1000/second
 delay_range = 10*ms
 params = sim.realistic_params
-steps = round(dur/dt)
-delay = round(delay_range/dt)
-min_p = round(1/max_f/dt)
-max_p = round(1/min_f/dt)
+steps = int(round(dur/dt))
+delay = int(round(delay_range/dt))
+min_p = int(round(1/max_f/dt))
+max_p = int(round(1/min_f/dt))
 print(str(round(time() - start_time, 2)) + " seconds")
 
 print("preparation")

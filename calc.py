@@ -22,7 +22,20 @@ def dynamic_state(input, delay, min_p, max_p, alpha):
     output = np.zeros(input.shape[1])
     num_f = round(max_p/min_p)
     state = np.zeros(num_f, dtype = complex)
-    scope = input.shape[0] * max_p / delay
+    scope = round(input.shape[0] * max_p / delay)
+    input_freqs = np.fft.rfft(input, scope, 0)[1:num_f+1]
+    phase_shift = np.exp(-2j * np.pi * np.arange(1, num_f+1) / max_p)
+    for s in range(output.size):
+        state *= phase_shift
+        state += alpha * (input_freqs[:, s] - state)
+        output[s] = np.sum(np.real(state))
+    return output
+
+def amplitude_state(input, delay, min_p, max_p, alpha):
+    output = np.zeros(input.shape[1])
+    num_f = round(max_p/min_p)
+    state = np.zeros(num_f, dtype = complex)
+    scope = round(input.shape[0] * max_p / delay)
     input_freqs = np.fft.rfft(input, scope, 0)[1:num_f+1]
     phase_shift = np.exp(-2j * np.pi * np.arange(1, num_f+1) / max_p)
     for s in range(output.size):

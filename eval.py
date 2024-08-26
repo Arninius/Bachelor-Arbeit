@@ -1,6 +1,7 @@
 from brian2 import *
 import numpy as np
 import scipy as sc
+import matplotlib.pyplot as pl
 
 def information(freqs, spect, df):
     if freqs.size == 0: return 0
@@ -18,11 +19,11 @@ def coherences(dt, signal, output, min_f, max_f, window):
 def spect_plot(dt, signal, models, min_f, max_f, window, res):
     for m in models:
         freqs, spect = coherences(dt, signal, m['output'], min_f, max_f, window)
-        filter_size = round(spect.size / (res * max_f / min_f))
+        filter_size = int(round(spect.size / (res * max_f / min_f)))
         spect = sc.ndimage.uniform_filter1d(spect, filter_size)
-        plot(freqs, spect, label = m['label'], color = m['color'])
+        pl.plot(freqs, spect, label = m['label'], color = m['color'])
         print(m['label'] + ": " + str(round(mean(spect), 2)))
-    xlabel("frequency in Hz")
-    ylabel("coherence")
-    legend()
-    show()
+    pl.xlabel("frequency in Hz")
+    pl.ylabel("coherence")
+    pl.legend()
+    pl.show()
